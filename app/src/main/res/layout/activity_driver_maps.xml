@@ -27,6 +27,13 @@
                 android:text="logout" />
 
             <Button
+                android:id="@+id/driver_history"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="History" />
+
+            <Button
                 android:id="@+id/driver_settings"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -109,6 +116,16 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Destination: --" />
+
+                <RatingBar
+                    android:id="@+id/d_rider_rating_bar"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:layout_marginBottom="10dp"
+                    android:isIndicator="true"
+                    android:numStars="5"
+                    android:stepSize="0.1" />
             </LinearLayout>
         </LinearLayout>
 

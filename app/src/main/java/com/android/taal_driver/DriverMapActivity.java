@@ -18,6 +18,7 @@ import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.RatingBar;
 import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -51,10 +52,27 @@ import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
 import com.squareup.picasso.Picasso;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static com.android.taal_driver.AppConstants.DISTANCE;
+import static com.android.taal_driver.AppConstants.DRIVER;
+import static com.android.taal_driver.AppConstants.DRIVERS;
+import static com.android.taal_driver.AppConstants.DRIVER_RATING;
+import static com.android.taal_driver.AppConstants.RIDER;
+import static com.android.taal_driver.AppConstants.RIDER_ID;
+import static com.android.taal_driver.AppConstants.RIDER_RATING;
+import static com.android.taal_driver.AppConstants.RIDER_REQUEST;
+import static com.android.taal_driver.AppConstants.RIDE_PRICE;
+import static com.android.taal_driver.AppConstants.SERVICE;
+import static com.android.taal_driver.AppConstants.TIME_STAMP;
+import static com.android.taal_driver.AppConstants.USERS;
+import static com.android.taal_driver.AppConstants.USER_DETAILS;
 
 public class DriverMapActivity extends FragmentActivity implements OnMapReadyCallback,
         GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener,
@@ -79,19 +97,28 @@ public class DriverMapActivity extends FragmentActivity implements OnMapReadyCal
     private ImageView mRiderProfilePic;
     private Button mLogout;
     private Button mSettings;
+    private Button mHistory;
     private Button mRideStatus;
     private Switch mWorkigSwitch;
+    private RatingBar mRatingBar;
 
     private boolean mDriverStatus = false;
     private float mRideDistance;
     private String mRiderId = "";
     private String mDriverId;
     private String mDestination;
+    private String mService;
     private int mStatus = 0;
     private final int LOCATION_REQUEST_CODE = 1;
 
     private List<Polyline> mPolylines;
     private static final int[] COLORS = new int[]{R.color.primary_dark_material_light};
+
+    private Date mTime1;
+    private Date mTime2;
+
+    private double mRideStartTime;
+    private double mRideEndTime;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -104,6 +131,7 @@ public class DriverMapActivity extends FragmentActivity implements OnMapReadyCal
             buildAlertMessageNoGps();
         }
 
+        // get driver id
         mDriverId = FirebaseAuth.getInstance().getUid();
 
         mRiderName = findViewById(R.id.d_rider_name);
@@ -111,6 +139,8 @@ public class DriverMapActivity extends FragmentActivity implements OnMapReadyCal
         mRiderDestination = findViewById(R.id.d_rider_destination);
         mRiderProfilePic = findViewById(R.id.d_rider_profile_pic);
         mRiderInfo = findViewById(R.id.d_rider_info);
+
+        mRatingBar = findViewById(R.id.d_rider_rating_bar);
 
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         mMapFragment = (SupportMapFragment) getSupportFragmentManager()
@@ -123,6 +153,15 @@ public class DriverMapActivity extends FragmentActivity implements OnMapReadyCal
             public void onClick(View v) {
                 // Signout the driver
                 signingOutDriver();
+            }
+        });
+
+        mHistory = findViewById(R.id.driver_history);
+        mHistory.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                Intent intent = new Intent(DriverMapActivity.this, HistoryActivity.class);
+                startActivity(intent);
             }
         });
 
@@ -156,6 +195,8 @@ public class DriverMapActivity extends FragmentActivity implements OnMapReadyCal
                     case 1:
                         mStatus = 2;
 
+                        mTime1 = new Date();
+
                         erasePolylines();
 
                         if (mDestinationLatLng.latitude != 0.0 && mDestinationLatLng.longitude != 0.0) {
@@ -166,6 +207,8 @@ public class DriverMapActivity extends FragmentActivity implements OnMapReadyCal
                         break;
 
                     case 2:
+                        mTime2 = new Date();
+
                         recordRide();
                         endRide();
                         break;
@@ -176,8 +219,21 @@ public class DriverMapActivity extends FragmentActivity implements OnMapReadyCal
         // request permission to access gps
         requestContactsPermission();
 
+        // get driver service
+        getDriverService();
+
         // get assigned rider information
         getAssignedRider();
+    }
+
+    private String rideTotalTime() {
+
+        Calendar c = Calendar.getInstance();
+
+        SimpleDateFormat df = new SimpleDateFormat("HH:mm:ss");
+        String formattedDate = df.format(c.getTime());
+
+        return formattedDate;
     }
 
     private void buildAlertMessageNoGps() {
@@ -209,9 +265,9 @@ public class DriverMapActivity extends FragmentActivity implements OnMapReadyCal
 
     private void recordRide() {
 
-        DatabaseReference driverRef = FirebaseDatabase.getInstance().getReference().child(AppConstants.USERS)
-                .child(AppConstants.DRIVERS).child(mDriverId).child(AppConstants.HISTORY);
-        DatabaseReference customerRef = FirebaseDatabase.getInstance().getReference().child(AppConstants.USERS)
+        DatabaseReference driverRef = FirebaseDatabase.getInstance().getReference().child(USERS)
+                .child(DRIVERS).child(mDriverId).child(AppConstants.HISTORY);
+        DatabaseReference customerRef = FirebaseDatabase.getInstance().getReference().child(USERS)
                 .child(AppConstants.RIDERS).child(mRiderId).child(AppConstants.HISTORY);
         DatabaseReference historyRef = FirebaseDatabase.getInstance().getReference().child(AppConstants.HISTORY);
 
@@ -219,24 +275,95 @@ public class DriverMapActivity extends FragmentActivity implements OnMapReadyCal
         driverRef.child(requestId).setValue(true);
         customerRef.child(requestId).setValue(true);
 
+        String rideDistance = String.valueOf(mRideDistance);
+
         HashMap map = new HashMap();
-        map.put(AppConstants.DRIVER, mDriverId);
-        map.put(AppConstants.RIDER, mRiderId);
-        map.put(AppConstants.RATING, 0);
-        map.put(AppConstants.TIME_STAMP, getCurrentTimestamp());
+        map.put(DRIVER, mDriverId);
+        map.put(RIDER, mRiderId);
+        map.put(DRIVER_RATING, "0");
+        map.put(RIDER_RATING, "0");
+        map.put(TIME_STAMP, getCurrentTimestamp());
         map.put(AppConstants.DESTINATION, mDestination);
         map.put("location/from/lat", mPickupLatLng.latitude);
         map.put("location/from/lng", mPickupLatLng.longitude);
         map.put("location/to/lat", mDestinationLatLng.latitude);
         map.put("location/to/lng", mDestinationLatLng.longitude);
-        map.put("distance", mRideDistance);
+        map.put(DISTANCE, rideDistance.substring(0, Math.min(rideDistance.length(), 5)));
 
         historyRef.child(requestId).updateChildren(map);
+
+        ridePriceCalculation(requestId);
     }
 
-    private Long getCurrentTimestamp() {
+    private void ridePriceCalculation(String requestId) {
+
+        int basePrice = 0;
+
+        switch (mService) {
+            case "UberX":
+                basePrice = 50;
+                break;
+            case "UberBlack":
+                basePrice = 100;
+                break;
+            case "UberXl":
+                basePrice = 150;
+                break;
+        }
+
+        double mDistancePrice = Double.valueOf(mRideDistance) * 10;
+
+        long mills = mTime1.getTime() - mTime2.getTime();
+        int hours = Integer.parseInt(String.valueOf(mills / (1000 * 60 * 60)));
+        int mins = Integer.parseInt(String.valueOf(mills % (1000 * 60 * 60)));
+
+        int timePrice = 0;
+
+        if (hours > 0) {
+            timePrice = timePrice * hours * 60;
+        }
+
+        if (mins > 0) {
+            timePrice = timePrice * mins;
+        }
+
+        if (timePrice > 0) {
+            timePrice = timePrice * 10;
+        }
+
+        double mRidePrice = mDistancePrice + basePrice + timePrice;
+
+        DatabaseReference reference = FirebaseDatabase.getInstance().getReference().child(AppConstants.HISTORY);
+
+        Map map = new HashMap();
+
+        String price = String.valueOf(mRidePrice);
+
+        map.put(RIDE_PRICE, price.substring(0, Math.min(price.length(), 5)));
+        reference.child(requestId).updateChildren(map);
+    }
+
+    private void getDriverService() {
+        DatabaseReference reference = FirebaseDatabase.getInstance().getReference().child(USERS).child(DRIVERS)
+                .child(mDriverId).child(USER_DETAILS).child(SERVICE);
+        reference.addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot dataSnapshot) {
+                if (dataSnapshot.exists()) {
+                    mService = dataSnapshot.getValue(String.class);
+                }
+            }
+
+            @Override
+            public void onCancelled(DatabaseError databaseError) {
+
+            }
+        });
+    }
+
+    private String getCurrentTimestamp() {
         Long timestamp = System.currentTimeMillis() / 1000;
-        return timestamp;
+        return timestamp.toString();
     }
 
     private void getRouteToMarker() {
@@ -257,8 +384,8 @@ public class DriverMapActivity extends FragmentActivity implements OnMapReadyCal
 
         mRideStatus.setText("Picked Rider");
 
-        DatabaseReference driverRef = FirebaseDatabase.getInstance().getReference().child(AppConstants.USERS)
-                .child(AppConstants.DRIVERS).child(mDriverId).child(AppConstants.RIDER_REQUEST);
+        DatabaseReference driverRef = FirebaseDatabase.getInstance().getReference().child(USERS)
+                .child(DRIVERS).child(mDriverId).child(RIDER_REQUEST);
         driverRef.removeValue();
 
         DatabaseReference ref = FirebaseDatabase.getInstance().getReference(AppConstants.RIDERS_REQUEST);
@@ -333,9 +460,8 @@ public class DriverMapActivity extends FragmentActivity implements OnMapReadyCal
     private void getAssignedRider() {
 
         // get reference of assigned Rider Id
-        DatabaseReference reference = FirebaseDatabase.getInstance().getReference().child(AppConstants.USERS)
-                .child(AppConstants.DRIVERS).child(mDriverId).child(AppConstants.RIDER_REQUEST)
-                .child(AppConstants.RIDER_ID);
+        DatabaseReference reference = FirebaseDatabase.getInstance().getReference().child(USERS)
+                .child(DRIVERS).child(mDriverId).child(RIDER_REQUEST).child(RIDER_ID);
 
         reference.addValueEventListener(new ValueEventListener() {
             @Override
@@ -428,10 +554,9 @@ public class DriverMapActivity extends FragmentActivity implements OnMapReadyCal
         mRiderInfo.setVisibility(View.VISIBLE);
 
         DatabaseReference databaseReference = FirebaseDatabase.getInstance().getReference()
-                .child(AppConstants.USERS).child(AppConstants.RIDERS).child(mRiderId)
-                .child(AppConstants.USER_DETAILS);
+                .child(USERS).child(AppConstants.RIDERS).child(mRiderId);
 
-        databaseReference.addValueEventListener(new ValueEventListener() {
+        databaseReference.child(AppConstants.USER_DETAILS).addValueEventListener(new ValueEventListener() {
             @Override
             public void onDataChange(DataSnapshot dataSnapshot) {
                 if (dataSnapshot.exists() && dataSnapshot.getChildrenCount() > 0) {
@@ -462,14 +587,39 @@ public class DriverMapActivity extends FragmentActivity implements OnMapReadyCal
             }
         });
 
+        // get values from rating node
+        databaseReference.child(RIDER_RATING).addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot dataSnapshot) {
+                if (dataSnapshot.exists()) {
+                    int ratingSum = 0;
+                    int ratingsTotal = 0;
+
+                    for (DataSnapshot child : dataSnapshot.getChildren()) {
+                        ratingSum = ratingSum + Integer.valueOf(child.getValue().toString());
+                        ratingsTotal++;
+                    }
+
+                    if (ratingsTotal != 0) {
+                        mRatingBar.setRating(ratingSum / ratingsTotal);
+                    }
+                }
+            }
+
+            @Override
+            public void onCancelled(DatabaseError databaseError) {
+
+            }
+        });
+
     }
 
     // get assigned rider destination
     private void getAssignedRiderDestination() {
 
         // get reference of assigned Rider destination
-        DatabaseReference reference = FirebaseDatabase.getInstance().getReference().child(AppConstants.USERS)
-                .child(AppConstants.DRIVERS).child(mDriverId).child(AppConstants.RIDER_REQUEST);
+        DatabaseReference reference = FirebaseDatabase.getInstance().getReference().child(USERS)
+                .child(DRIVERS).child(mDriverId).child(RIDER_REQUEST);
 
         reference.addValueEventListener(new ValueEventListener() {
             @Override
@@ -557,7 +707,6 @@ public class DriverMapActivity extends FragmentActivity implements OnMapReadyCal
             return;
         }
         LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
-
     }
 
     @Override
@@ -667,10 +816,12 @@ public class DriverMapActivity extends FragmentActivity implements OnMapReadyCal
     }
 
     private void erasePolylines() {
-        for (Polyline line : mPolylines) {
-            line.remove();
-        }
         if (mPolylines != null) {
+
+            for (Polyline line : mPolylines) {
+                line.remove();
+            }
+
             mPolylines.clear();
         }
     }

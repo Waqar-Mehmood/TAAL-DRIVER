@@ -34,6 +34,8 @@
             android:name=".DriverMapActivity"
             android:label="@string/title_activity_driver_maps" />
         <activity android:name=".DriverSettingActivity" />
+        <activity android:name=".HistoryActivity" />
+        <activity android:name=".HistorySingleActivity" />
     </application>
 
 </manifest>

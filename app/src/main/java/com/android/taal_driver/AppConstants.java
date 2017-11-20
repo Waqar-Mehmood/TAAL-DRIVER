@@ -31,7 +31,13 @@ public class AppConstants {
     public static String DESTINATION_LONGITUDE = "destination_longitude";
 
     public static String HISTORY = "history";
-    public static String RATING = "rating";
+    public static String DRIVER_RATING = "driver_rating";
+    public static String RIDER_RATING = "rider_rating";
     public static String TIME_STAMP = "time_stamp";
 
+    public static String RIDE_ID = "ride_id";
+    public static String DISTANCE = "distance";
+
+    public static String ROUTE_LOCATION = "location";
+    public static String RIDE_PRICE = "ride_price";
 }

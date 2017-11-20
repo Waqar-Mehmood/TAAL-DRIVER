@@ -33,7 +33,7 @@ public class DriverLoginActivity extends AppCompatActivity {
 
     private static final int RC_SIGN_IN = 1;
 
-    static boolean mCalledAlready = false;
+    private static boolean mCalledAlready = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -93,7 +93,6 @@ public class DriverLoginActivity extends AppCompatActivity {
                 Toast.makeText(DriverLoginActivity.this, "Signed in successfully!!", Toast.LENGTH_SHORT).show();
 
             } else if (resultCode == RESULT_CANCELED) {
-
                 setContentView(R.layout.activity_driver_login);
             }
         }
